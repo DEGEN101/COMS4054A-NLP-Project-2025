@@ -21,8 +21,8 @@ You can install these packages using `pip`:
 ## Usage
 1. Clone the repository:
 ```bash
-    git clone <repository_url>
-    cd <repository_directory>
+    git clone https://github.com/DEGEN101/COMS4054A-NLP-Project-2025.git
+    cd COMS4054A-NLP-Project-2025
 ```
 
 2. Install the required packages (as mentioned above).
