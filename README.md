@@ -3,13 +3,14 @@
 This project explores in-context learning using a simplified Transformer model to solve the Wisconsin Card Sorting Test (WCST). The WCST is a cognitive test that assesses abstract reasoning and cognitive flexibility.
 
 ## Project Structure
-*   `wcst.py`: Contains the `WCST` class for generating WCST trials and visualising batches.
-*   `requirements.txt`: Lists the Python packages required to run the project.
-*   `npl_in_context_project_2025.ipynb`: A Jupyter Notebook containing the code for dataset creation, Transformer model definition, training, and inference.
-*   `toy_transformer/`: A directory containing the implementation of a simplified Transformer model.
-    *   `__init__.py`: Initialises the `toy_transformer` package
+*   `datasets/`:
+    *   `wcst.py`: Contains the `WCST` class for generating WCST trials and visualising batches.
+*   `notebooks/`:
+    *   `train_model.ipynb`: A Jupyter Notebook containing the code for Transformer model definition, training, and inference.
+*   `src/`:
     *   `transformer.py`: Defines the Transformer model.
-    *   `utilities.py`: Contains utility functions for the Transformer model (e.g., positional encoding).
+    *   `utilities.py`: Contains utility functions for the Transformer model.
+*   `requirements.txt`: Lists the Python packages required to run the project.
 
 ## Requirements
 You can install these packages using `pip`:
@@ -27,7 +28,7 @@ You can install these packages using `pip`:
 
 2. Install the required packages (as mentioned above).
 
-3. Open and run the **npl_in_context_project_2025.ipynb** Jupyter Notebook. The notebook
+3. Open and run the **train_model.ipynb** Jupyter Notebook. The notebook
 contains detailed explanations and code for each step of the project, including:
     - Dataset creation and loading
     - Transformer model definition and initialisation
