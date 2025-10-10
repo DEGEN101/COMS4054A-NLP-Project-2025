@@ -7,6 +7,7 @@ This project explores in-context learning using a simplified Transformer model t
     *   `wcst.py`: Contains the `WCST` class for generating WCST trials and visualising batches.
 *   `notebooks/`:
     *   `train_model.ipynb`: A Jupyter Notebook containing the code for Transformer model definition, training, and inference.
+    *   `create_dataset.ipynb`: A Jupyter Notebook containing the code to create train, test, and validation datasets from `wcst.py`.
 *   `src/`:
     *   `transformer.py`: Defines the Transformer model.
     *   `utilities.py`: Contains utility functions for the Transformer model.
