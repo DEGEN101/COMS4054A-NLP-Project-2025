@@ -57,7 +57,7 @@ class PositionalEncodingBlock(nn.Module):
 
         positional_encoding = T.zeros([max_sequence_length, embedding_size])
         position = T.arange(0, max_sequence_length, dtype=T.float).reshape(-1, 1)
-        denominator = T.exp(T.arange(0, embedding_size, 2).to(T.float) * -(np.log(10000.0) / embedding_size))
+        denominator = T.exp(T.arange(0, embedding_size, 2).to(T.float) * (np.log(10000.0) / embedding_size))
 
         positional_encoding[:, 0::2] = T.sin(position / denominator)
         positional_encoding[:, 1::2] = T.cos(position / denominator)
