@@ -2,7 +2,7 @@ import torch as T
 import torch.nn as nn
 import numpy as np
 
-from .utilities import get_attentions, split_heads, combine_heads, generate_mask
+from .utilities import get_attentions, split_heads, combine_heads, generate_mask, decompose_card_ids
 
 
 class MultiHeadAttentionBlock(nn.Module):
@@ -66,7 +66,7 @@ class PositionalEncodingBlock(nn.Module):
 
     def forward(self, x: T.Tensor):
         seq_len = x.size(1)
-        return x + self.positional_encoding[:, :seq_len].to(x.device)
+        return x + self.positional_encoding[:, :seq_len]
 
 
 class EncoderBlock(nn.Module):
@@ -117,44 +117,146 @@ class DecoderBlock(nn.Module):
         return self.normalization_layer3(z + self.dropout(ff_output))
 
 
+class CardEmbedding(nn.Module):
+    def __init__(self, color_vocab: int, shape_vocab: int, number_vocab: int, 
+                embedding_size: int, hidden_dim: int = 128) -> None:
+        super().__init__()
+
+        self.color_embed = nn.Embedding(color_vocab, embedding_size)
+        self.shape_embed = nn.Embedding(shape_vocab, embedding_size)
+        self.number_embed = nn.Embedding(number_vocab, embedding_size)
+        
+        self.fc1 = nn.Linear(embedding_size * 3, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, embedding_size)
+    
+    def forward(self, color_idx, shape_idx, number_idx):
+        color_vec = self.color_embed(color_idx)
+        shape_vec = self.shape_embed(shape_idx)
+        number_vec = self.number_embed(number_idx)
+        
+        x = T.cat([color_vec, shape_vec, number_vec], dim=-1)
+        x = T.relu(self.fc1(x))
+        return self.fc2(x)
+
+
 class Transformer(nn.Module):
-    def __init__(self, source_vocab_size: int, target_vocab_size: int, embedding_size: int, 
-                n_attention_heads: int, n_blocks: int, max_sequence_length: int, ff_dims:int, 
-                dropout_prob: float, device: str | T.device = "cpu") -> None:
+    def __init__(self, source_vocab_size: int, target_vocab_size: int, card_dims: tuple[int, int, int],
+                embedding_size: int, n_attention_heads: int, n_blocks: int, max_sequence_length: int, 
+                ff_dims:int, dropout_prob: float, device: str | T.device = "cpu") -> None:
         super().__init__()
 
         self.device = T.device(device)
 
-        self.encoder_embedding = nn.Embedding(num_embeddings=source_vocab_size, embedding_dim=embedding_size).to(self.device)
-        self.decoder_embedding = nn.Embedding(num_embeddings=target_vocab_size, embedding_dim=embedding_size).to(self.device)
-        self.pe_block = PositionalEncodingBlock(embedding_size, max_sequence_length).to(self.device)
+        self.card_embedding = CardEmbedding(
+            *card_dims, embedding_size=embedding_size, hidden_dim=128
+        )
+        self.encoder_embedding = nn.Embedding(
+            num_embeddings=source_vocab_size, embedding_dim=embedding_size
+        )
+        self.decoder_embedding = nn.Embedding(
+            num_embeddings=target_vocab_size, embedding_dim=embedding_size
+        )
+        self.pe_block = PositionalEncodingBlock(embedding_size, max_sequence_length)
 
         self.encoder_blocks = nn.ModuleList([
-            EncoderBlock(embedding_size, n_attention_heads, ff_dims, dropout_prob).to(self.device) for _ in range(n_blocks)
+            EncoderBlock(embedding_size, n_attention_heads, ff_dims, dropout_prob) for _ in range(n_blocks)
         ])
 
         self.decoder_blocks = nn.ModuleList([
-            DecoderBlock(embedding_size, n_attention_heads, ff_dims, dropout_prob).to(self.device) for _ in range(n_blocks)
+            DecoderBlock(embedding_size, n_attention_heads, ff_dims, dropout_prob) for _ in range(n_blocks)
         ])
 
-        self.linear_layer = nn.Linear(in_features=embedding_size, out_features=target_vocab_size).to(self.device)
+        self.linear_layer = nn.Linear(in_features=embedding_size, out_features=target_vocab_size)
         self.dropout = nn.Dropout(dropout_prob)
+
+        self.to(self.device)
 
     def forward(self, source_sequence, target_sequence):
         source_sequence = source_sequence.to(self.device)
         target_sequence = target_sequence.to(self.device)
 
-        mask = generate_mask(target_sequence).to(self.device)
+        # --- Source Sequence Embedding ---
+        card_mask_source  = (source_sequence < 64)
+        color_idx_source, shape_idx_source, quantity_idx_source  = decompose_card_ids(
+            T.clamp(source_sequence, 0, 64 - 1)
+        )
+        color_idx_source = color_idx_source.to(self.device)
+        shape_idx_source = shape_idx_source.to(self.device)
+        quantity_idx_source = quantity_idx_source.to(self.device)
 
-        source_embedded = self.dropout(self.pe_block(self.encoder_embedding(source_sequence)))
-        target_embedded = self.dropout(self.pe_block(self.decoder_embedding(target_sequence)))
+        encoder_card_embedded = self.card_embedding(color_idx_source, shape_idx_source, quantity_idx_source)
+        encoder_card_embedded = encoder_card_embedded * card_mask_source.unsqueeze(-1)
 
+        encoder_token_embedded = self.encoder_embedding(source_sequence)
+        source_embedded = self.dropout(self.pe_block(encoder_token_embedded + encoder_card_embedded))
+
+        # --- Target Sequence Embedding ---
+        card_mask_target = (target_sequence < 64)
+        color_idx_target, shape_idx_target, quantity_idx_target = decompose_card_ids(
+            T.clamp(target_sequence, 0, 64 - 1)
+        )
+        color_idx_target = color_idx_target.to(self.device)
+        shape_idx_target = shape_idx_target.to(self.device)
+        quantity_idx_target = quantity_idx_target.to(self.device)
+
+        decoder_card_embedded = self.card_embedding(color_idx_target, shape_idx_target, quantity_idx_target)
+        decoder_card_embedded = decoder_card_embedded * card_mask_target.unsqueeze(-1)
+
+        decoder_token_embedded = self.decoder_embedding(target_sequence)
+        target_embedded = self.dropout(self.pe_block(decoder_token_embedded + decoder_card_embedded))
+
+        # --- Encoder stack ---
         encoder_output = source_embedded
         for block in self.encoder_blocks:
             encoder_output = block(encoder_output)
 
+        # --- Decoder stack ---
+        mask = generate_mask(target_sequence).to(self.device)
         decoder_output = target_embedded
         for block in self.decoder_blocks:
             decoder_output = block(decoder_output, encoder_output, mask)
 
         return self.linear_layer(decoder_output)
+
+
+if __name__ == "__main__":
+    import torch as T
+
+    device = T.device('cuda' if T.cuda.is_available() else 'cpu')
+    print(f'Using device: {device}')
+
+    VOCABULARY_SIZE = 70
+    EMBEDDING_SIZE = 128
+    N_ATTENTION_HEADS = 4
+    N_BLOCKS = 6
+    MAX_SEQUENCE_LENGTH = 10
+    FF_DIMS = 256
+    DROPOUT_PROB = 0.2
+
+    # card dims: (color_vocab, shape_vocab, number_vocab)
+    CARD_DIMS = (4, 4, 4)
+
+    transformer = Transformer(
+        VOCABULARY_SIZE, VOCABULARY_SIZE, CARD_DIMS, EMBEDDING_SIZE, N_ATTENTION_HEADS,
+        N_BLOCKS, MAX_SEQUENCE_LENGTH, FF_DIMS, DROPOUT_PROB, device=device
+    )
+
+    # --- Example WCST input ---
+    encoder_input = T.tensor([
+        [2, 21, 23, 52, 18, 68, 64, 69]  # truncated to fit MAX_SEQUENCE_LENGTH
+    ], dtype=T.long).to(device)
+
+    decoder_input = T.tensor([
+        [13, 68, 0, 0, 0, 0, 0, 0]  # padded to MAX_SEQUENCE_LENGTH
+    ], dtype=T.long).to(device)
+
+    # Forward pass
+    transformer.eval()
+    with T.no_grad():
+        output = transformer(encoder_input, decoder_input)  # [batch, seq_len, vocab]
+
+    print("Encoder input:", encoder_input)
+    print("Decoder input:", decoder_input)
+    print("Transformer output shape:", output.shape)
+    print("Transformer output (logits for last position):", output[:, -1, :])
+    print("Predicted category token:", output[:, -1, :].argmax(dim=-1))

@@ -27,7 +27,7 @@ def combine_heads(matrix: T.Tensor):
     return matrix.contiguous().view(batch_size, sequence_length, n_heads * d_k)
 
 
-def generate_mask(batch_tokens: T.Tensor, pad_token_id: int = 0) -> T.Tensor:
+def generate_mask(batch_tokens: T.Tensor, pad_token_id: int = -1) -> T.Tensor:
     _, seq_len = batch_tokens.size()
 
     pad_mask = (batch_tokens != pad_token_id).unsqueeze(1).unsqueeze(2)
@@ -35,3 +35,11 @@ def generate_mask(batch_tokens: T.Tensor, pad_token_id: int = 0) -> T.Tensor:
     combined_mask = pad_mask & causal_mask.unsqueeze(0)
 
     return combined_mask
+
+
+def decompose_card_ids(card_ids: T.Tensor) -> tuple[T.Tensor, T.Tensor, T.Tensor]:
+    colour_idx = card_ids // 16
+    shape_idx = (card_ids % 16) // 4
+    quantity_idx = card_ids % 4
+
+    return colour_idx, shape_idx, quantity_idx
