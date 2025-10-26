@@ -23,6 +23,11 @@ class WCST:
     def context_switch(self):
         self.category_feature = np.random.choice(np.delete([0,1,2],self.category_feature))
 
+    def set_context(self, context):
+        if context < 0 or context > 2:
+            raise IndexError("[!] Context out of Range")
+        self.category_feature = context
+
     def gen_batch(self):
         batch_size = self.batch_size
         while True:
@@ -73,8 +78,7 @@ class WCST:
 # for i in range(1):
 #     batch = next(wcst.gen_batch())
 #     X, T = batch
-#     print(X, T)
-#     # wcst.visualise_batch(batch)
+#     wcst.visualise_batch(batch)
 # wcst.context_switch()
 # for i in range(10):
 #     batch = next(wcst.gen_batch())
