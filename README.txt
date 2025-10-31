@@ -37,6 +37,7 @@ This project explores in-context learning using a simplified Transformer model t
     └── plot_scaling_law_performance_metrics.py
 ```
 
+
 ## Installation
 1. Clone the repository:
 ```bash
@@ -50,8 +51,8 @@ Install these packages using `pip`:
     pip install -r requirements.txt
 ```
 
-## Usage
 
+## Usage
 Open and run any Jupyter Notebook in the notebook directory to reproduce an experiments results. Then run the corresponding plotting script to plot/display the results, e.g. For the architecture experiments:
 1. Run the notebooks `train_baseline_model.ipynb` and `train_ce_model.ipynb` in the `/notebooks/model_architecture/` directory (these will produce two json files in the `/results/architecture/` directory)
 2. Run `plot_performace_metrics.py` to plot results as follows:
