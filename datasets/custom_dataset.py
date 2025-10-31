@@ -9,14 +9,14 @@ import random
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(PROJECT_ROOT)
 
-from datasets.wcst import WCST
+from datasets.wcst2 import WCST
 from misc.consts import *
 
 
 class CustomWCSTDataset(Dataset):
     def __init__(
         self, context_length: int = 1, total_batches: int = 1000, sample_batch_size: int = 64,
-        fixed_context: int | None = None, allow_switch: bool = True,
+        fixed_context: int | None = None, allow_switch: bool = True, features: dict[str, list[str]] | None = None
     ) -> None:
         super().__init__()
 
@@ -30,7 +30,8 @@ class CustomWCSTDataset(Dataset):
         self.allow_switch = allow_switch
 
         # Each dataset instance gets its own WCST environment
-        self.wcst = WCST(sample_batch_size)
+        self.wcst = WCST(sample_batch_size, features)
+        self.vocabulary_size = self.wcst.get_vocabulary_size()
 
         # Pre-generate samples for this dataset
         self.samples = self._generate_dataset()

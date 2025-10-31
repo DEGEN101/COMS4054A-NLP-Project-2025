@@ -4,71 +4,68 @@ import sys
 import matplotlib.pyplot as plt
 
 # === Check input file ===
-if len(sys.argv) < 2:
-    print("Usage: python plot_performace_metrics.py <path_to_json_file>")
+if len(sys.argv) < 3:
+    print("Usage: python plot_compare_models.py <baseline_json> <ce_json>")
     sys.exit(1)
 
-json_path = sys.argv[1]
+baseline_path = sys.argv[1]
+ce_path = sys.argv[2]
 
-# === Validate file ===
-if not os.path.exists(json_path):
-    print(f"Error: File '{json_path}' not found.")
-    sys.exit(1)
+# === Validate files ===
+for p in [baseline_path, ce_path]:
+    if not os.path.exists(p):
+        print(f"Error: File '{p}' not found.")
+        sys.exit(1)
 
 # === Load Data ===
-with open(json_path, "r") as f:
-    data = json.load(f)
+with open(baseline_path, "r") as f:
+    baseline = json.load(f)
+
+with open(ce_path, "r") as f:
+    ce = json.load(f)
 
 # === Ensure plots folder exists ===
 os.makedirs("plots", exist_ok=True)
 
-# === Extract prefix from filename ===
-filename = os.path.basename(json_path)
-name_without_ext = os.path.splitext(filename)[0]
-prefix_words = name_without_ext.split("_")[:2]  # first two words
-prefix = "_".join(prefix_words)
+# Prefix names
+baseline_prefix = "Baseline Transformer"
+ce_prefix = "Card Embedding Transformer"
 
-# === Epochs ===
-epochs = range(1, len(data["train_losses"]) + 1)
+epochs = range(1, len(baseline["train_losses"]) + 1)
 
-# === Helper function to save plots ===
-def save_plot(fig, name):
-    path = os.path.join("plots", f"{prefix}_{name}.png")
+def save_fig(fig, name):
+    path = os.path.join("plots", f"compare_{name}.png")
     fig.savefig(path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved: {path}")
 
-# === Plot 1: Loss ===
-fig, ax = plt.subplots(figsize=(8, 5))
-ax.plot(epochs, data["train_losses"], label="Train Loss", linewidth=2)
-ax.plot(epochs, data["val_losses"], label="Validation Loss", linewidth=2)
-ax.set_xlabel("Epochs")
-ax.set_ylabel("Loss")
-ax.set_title("Training vs Validation Loss")
-ax.legend()
-ax.grid(True)
-save_plot(fig, "loss_curve")
+# === Helper to make side-by-side plots ===
+def plot_metric(metric_name, ylabel, title):
+    fig, axes = plt.subplots(1, 2, figsize=(14,5), sharey=True)
 
-# === Plot 2: Accuracy ===
-fig, ax = plt.subplots(figsize=(8, 5))
-ax.plot(epochs, data["train_accs"], label="Train Accuracy", linewidth=2)
-ax.plot(epochs, data["val_accs"], label="Validation Accuracy", linewidth=2)
-ax.set_xlabel("Epochs")
-ax.set_ylabel("Accuracy")
-ax.set_title("Training vs Validation Accuracy")
-ax.legend()
-ax.grid(True)
-save_plot(fig, "accuracy_curve")
+    # Baseline
+    axes[0].plot(epochs, baseline[f"train_{metric_name}"], label="Train", linewidth=2)
+    axes[0].plot(epochs, baseline[f"val_{metric_name}"], label="Validation", linewidth=2)
+    axes[0].set_title(f"{baseline_prefix}")
+    axes[0].set_ylabel(ylabel)
+    axes[0].set_xlabel("Epochs")
+    axes[0].grid(True)
+    axes[0].legend()
 
-# === Plot 3: Perplexity ===
-fig, ax = plt.subplots(figsize=(8, 5))
-ax.plot(epochs, data["train_perplexities"], label="Train Perplexity", linewidth=2)
-ax.plot(epochs, data["val_perplexities"], label="Validation Perplexity", linewidth=2)
-ax.set_xlabel("Epochs")
-ax.set_ylabel("Perplexity")
-ax.set_title("Training vs Validation Perplexity")
-ax.legend()
-ax.grid(True)
-save_plot(fig, "perplexity_curve")
+    # CE Transformer
+    axes[1].plot(epochs, ce[f"train_{metric_name}"], label="Train", linewidth=2)
+    axes[1].plot(epochs, ce[f"val_{metric_name}"], label="Validation", linewidth=2)
+    axes[1].set_title(f"{ce_prefix}")
+    axes[1].set_xlabel("Epochs")
+    axes[1].grid(True)
+    axes[1].legend()
 
-print(f"\nAll plots saved successfully in the 'plots' folder using prefix '{prefix}_'.")
+    fig.suptitle(title, fontsize=14)
+    save_fig(fig, metric_name)
+
+# === Generate Plots ===
+plot_metric("losses",        "Loss",        "Training vs Validation Loss")
+plot_metric("accs",          "Accuracy",    "Training vs Validation Accuracy")
+plot_metric("perplexities",  "Perplexity",  "Training vs Validation Perplexity")
+
+print("\nAll comparison plots saved in /plots as compare_*.png")
